@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: habitforge-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: habitforge
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - habitforge-network
+
+  # Backend Service (Node.js)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: habitforge-backend
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this}
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/habitforge
+      FRONTEND_URL: http://localhost:3000
+      AI_SERVICE_URL: http://ai-service:5001
+    depends_on:
+      - mongodb
+    networks:
+      - habitforge-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # AI/ML Service (Python)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: habitforge-ai-service
+    ports:
+      - "5001:5001"
+    environment:
+      PORT: 5001
+      DEBUG: 'True'
+      FLASK_ENV: development
+    networks:
+      - habitforge-network
+    volumes:
+      - ./ai-service:/app
+
+  # Frontend Service (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: habitforge-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:5000/api
+      REACT_APP_AI_SERVICE_URL: http://localhost:5001/api
+    depends_on:
+      - backend
+      - ai-service
+    networks:
+      - habitforge-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+networks:
+  habitforge-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
